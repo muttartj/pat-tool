@@ -443,21 +443,23 @@
 
     // Image/PDF Extraction via Claude API
     const extractPatternFromImage = async (base64Image, mediaType, apiKey) => {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 8192,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Image }},
-              { type: 'text', text: `You are extracting shipping pattern or rail waybill data from this image. Extract ALL visible information into a structured format.
+      try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 8192,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Image }},
+                { type: 'text', text: `You are extracting shipping pattern or rail waybill data from this image. Extract ALL visible information into a structured format.
 
 Return ONLY a valid JSON array (no markdown code fences, no explanation) with objects containing these fields. Extract every field you can find - use empty string "" for fields not visible:
 
@@ -542,8 +544,15 @@ Return the JSON array now:`
       });
       
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error?.message || 'API request failed');
+        let errorMessage = 'API request failed';
+        try {
+          const err = await response.json();
+          errorMessage = err.error?.message || errorMessage;
+        } catch (e) {
+          // Response wasn't JSON
+          errorMessage = `API error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -556,6 +565,13 @@ Return the JSON array now:`
       }
       
       return JSON.parse(jsonStr);
+      } catch (err) {
+        console.error('API call error:', err);
+        if (err.message.includes('Failed to fetch')) {
+          throw new Error('Network error: Unable to reach Anthropic API. Please check your internet connection.');
+        }
+        throw err;
+      }
     };
 
     const pdfToImages = async (file) => {
@@ -1727,9 +1743,20 @@ Return the JSON array now:`
       const handleApiKeySubmit = async () => {
         if (!apiKeyInput.trim()) return;
         handleSaveApiKey(apiKeyInput.trim());
+        setShowApiKeyInput(false);
+        
         if (extractionSource) {
-          await processImageOrPdf(extractionSource.file, extractionSource.ext, extractionSource.sourceType);
-          setExtractionSource(null);
+          // Small delay to let modal close before processing
+          setTimeout(async () => {
+            try {
+              await processImageOrPdf(extractionSource.file, extractionSource.ext, extractionSource.sourceType);
+            } catch (err) {
+              console.error('Processing error:', err);
+              setExtractionError(err.message || 'Failed to process file');
+            } finally {
+              setExtractionSource(null);
+            }
+          }, 100);
         }
       };
 
