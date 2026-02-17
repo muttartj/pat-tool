@@ -443,30 +443,28 @@
 
     // Image/PDF Extraction via Claude API
     const extractPatternFromImage = async (base64Image, mediaType, apiKey) => {
-      try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 8192,
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Image }},
-                { type: 'text', text: `You are extracting shipping pattern or rail waybill data from this image. Extract ALL visible information into a structured format.
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8192,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Image }},
+              { type: 'text', text: `You are extracting shipping pattern or rail waybill data from this image. Extract ALL visible information into a structured format.
 
 Return ONLY a valid JSON array (no markdown code fences, no explanation) with objects containing these fields. Extract every field you can find - use empty string "" for fields not visible:
 
 LANE INFORMATION:
 - telegraph_pattern_name: Pattern identifier or generate from "STCC - OriginCity - DestCity"
 - stcc: Commodity/STCC code (usually 7 digits)
-- origin_city, origin_state, origin_country: Origin location (parse "FREEPORT TX" → "FREEPORT", "TX", "US")
+- origin_city, origin_state, origin_country: Origin location (parse "FREEPORT TX"  â  "FREEPORT", "TX", "US")
 - destination_city, destination_state, destination_country: Destination location
 - route: Carrier routing codes (e.g., "BNSF-UP", "CN", "NS-CSX")
 
@@ -529,7 +527,7 @@ OTHER:
 - price_authority_type, price_authority_reference_id, price_authority_tariff_agency, price_authority_carrier
 
 IMPORTANT RULES:
-1. Parse combined addresses: "123 MAIN ST, HOUSTON TX 77001" → address="123 MAIN ST", city="HOUSTON", state="TX", postal="77001"
+1. Parse combined addresses: "123 MAIN ST, HOUSTON TX 77001"  â  address="123 MAIN ST", city="HOUSTON", state="TX", postal="77001"
 2. For US states, use 2-letter abbreviations
 3. Default country to "US" if clearly North American and not obviously CA or MX
 4. Look carefully for payment terms - they may be abbreviated (PP, CC, 11, COL, PRE)
@@ -544,15 +542,8 @@ Return the JSON array now:`
       });
       
       if (!response.ok) {
-        let errorMessage = 'API request failed';
-        try {
-          const err = await response.json();
-          errorMessage = err.error?.message || errorMessage;
-        } catch (e) {
-          // Response wasn't JSON
-          errorMessage = `API error: ${response.status} ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
+        const err = await response.json();
+        throw new Error(err.error?.message || 'API request failed');
       }
       
       const data = await response.json();
@@ -565,13 +556,6 @@ Return the JSON array now:`
       }
       
       return JSON.parse(jsonStr);
-      } catch (err) {
-        console.error('API call error:', err);
-        if (err.message.includes('Failed to fetch')) {
-          throw new Error('Network error: Unable to reach Anthropic API. Please check your internet connection.');
-        }
-        throw err;
-      }
     };
 
     const pdfToImages = async (file) => {
@@ -621,8 +605,15 @@ Return the JSON array now:`
         const dc = (r.destination_country || '').toUpperCase();
         if (stcc.startsWith('48') || stcc.startsWith('49')) tags.push('HazMat');
         if (pt.includes('11')) tags.push('Rule 11');
-        if (oc && dc && oc !== dc) tags.push('Cross Border');
-        else if (oc && dc) tags.push('Domestic');
+        const involvesMXTag = oc === 'MX' || dc === 'MX';
+        if (involvesMXTag) {
+          tags.push('Carta Porte');
+          if (oc && dc && oc !== dc) tags.push('Cross Border');
+        } else if (oc && dc && oc !== dc) {
+          tags.push('Cross Border');
+        } else if (oc && dc) {
+          tags.push('Domestic');
+        }
         if (pt.includes('pp') || pt.includes('prepaid')) tags.push('Prepaid');
         return { ...r, _tags: tags, _index: i };
       });
@@ -745,11 +736,12 @@ Return the JSON array now:`
         hazmat: rows.filter(r => r._tags.includes('HazMat')).length,
         crossBorder: rows.filter(r => r._tags.includes('Cross Border')).length,
         rule11: rows.filter(r => r._tags.includes('Rule 11')).length,
+        cartaPorte: rows.filter(r => r._tags.includes('Carta Porte')).length,
       };
 
       const crossBorderRoutes = {};
       rows.filter(r => r._tags.includes('Cross Border')).forEach(r => {
-        const rt = `${r.origin_country}→${r.destination_country}`;
+        const rt = `${r.origin_country} to ${r.destination_country}`;
         crossBorderRoutes[rt] = (crossBorderRoutes[rt] || 0) + 1;
       });
 
@@ -773,7 +765,7 @@ Return the JSON array now:`
 
     // Components
     const StatusPill = ({ type }) => {
-      const styles = {'HazMat':'bg-indigo-100 text-indigo-800','Cross Border':'bg-teal-100 text-teal-800','Domestic':'bg-emerald-100 text-emerald-800','Rule 11':'bg-cyan-100 text-cyan-800','Prepaid':'bg-sky-100 text-sky-800'};
+      const styles = {'HazMat':'bg-indigo-100 text-indigo-800','Cross Border':'bg-teal-100 text-teal-800','Domestic':'bg-emerald-100 text-emerald-800','Rule 11':'bg-cyan-100 text-cyan-800','Prepaid':'bg-sky-100 text-sky-800','Carta Porte':'bg-orange-100 text-orange-800'};
       return <span className={`px-2 py-0.5 text-xs font-medium rounded ${styles[type] || 'bg-gray-100 text-gray-700'}`}>{type}</span>;
     };
 
@@ -920,7 +912,7 @@ Return the JSON array now:`
     };
 
     const StatCard = ({ icon: Icon, label, value, sublabel, color = 'blue' }) => {
-      const colors = { blue: 'bg-blue-50 text-blue-600', indigo: 'bg-indigo-50 text-indigo-600', teal: 'bg-teal-50 text-teal-600', cyan: 'bg-cyan-50 text-cyan-600' };
+      const colors = { blue: 'bg-blue-50 text-blue-600', indigo: 'bg-indigo-50 text-indigo-600', teal: 'bg-teal-50 text-teal-600', cyan: 'bg-cyan-50 text-cyan-600', orange: 'bg-orange-50 text-orange-600' };
       return (
         <div className="bg-white rounded-xl border p-4">
           <div className="flex items-start justify-between">
@@ -971,7 +963,7 @@ Return the JSON array now:`
                       Adding <strong>{suggestedField.label}</strong> would increase uniqueness to <strong>{suggestedField.uniqueness.toFixed(1)}%</strong>
                     </p>
                     {suggestedField.uniqueness === 100 && (
-                      <p className="text-xs text-emerald-600 mt-1 font-medium">✓ This would achieve 100% uniqueness</p>
+                      <p className="text-xs text-emerald-600 mt-1 font-medium">âœ“ This would achieve 100% uniqueness</p>
                     )}
                   </div>
                 )}
@@ -1165,7 +1157,7 @@ Return the JSON array now:`
                     <td key={c} className="px-3 py-2 whitespace-nowrap max-w-[200px] truncate">
                       {c === '_tags' ? <div className="flex flex-wrap gap-1">{(r._tags || []).map((t, j) => <StatusPill key={j} type={t} />)}</div>
                         : c === 'telegraph_pattern_name' ? <span className="font-medium" title={r[c]}>{r[c] || `${r.stcc || ''} - ${r.origin_city || ''} - ${r.destination_city || ''}`}</span>
-                        : <span title={r[c] || ''}>{r[c] || '—'}</span>}
+                        : <span title={r[c] || ''}>{r[c] || 'â€”'}</span>}
                     </td>
                   ))}
                 </tr>
@@ -1176,6 +1168,168 @@ Return the JSON array now:`
           <div className="p-3 bg-slate-50 border-t text-xs text-slate-500">
             Showing all {cols.length} columns ({sorted.length} rows)
           </div>
+        </div>
+      );
+    };
+
+    // Data Quality Analysis
+    const analyzeDataQuality = (data) => {
+      const issues = [];
+
+      data.forEach((row, i) => {
+        const name = row.telegraph_pattern_name || `Row ${i + 1}`;
+        const pt = (row.payment_type || '').toLowerCase();
+        const oc = (row.origin_country || '').toUpperCase();
+        const dc = (row.destination_country || '').toUpperCase();
+        const isCrossBorderCA = (oc === 'CA' || dc === 'CA') && oc !== dc;
+        const isCrossBorderMX = (oc === 'MX' || dc === 'MX') && oc !== dc;
+        const isRule11 = pt.includes('11') || pt.includes('rule11') || pt.includes('rule 11');
+        const isPrepaid = pt.includes('pp') || pt.includes('prepaid') || pt.includes('pre');
+        const rowIssues = [];
+
+        // Always required: Shipper
+        if (!row.shipper_name && !row.shipper_address) {
+          rowIssues.push({ field: 'Shipper', rule: 'Required for all patterns', severity: 'error' });
+        }
+        // Always required: Consignee
+        if (!row.consignee_name && !row.consignee_address) {
+          rowIssues.push({ field: 'Consignee', rule: 'Required for all patterns', severity: 'error' });
+        }
+        // Prepaid: Freight Payor required
+        if (isPrepaid && !row.freight_payor_name && !row.freight_payor_address) {
+          rowIssues.push({ field: 'Freight Payor', rule: 'Required when payment type is Prepaid', severity: 'error' });
+        }
+        // Rule 11: Rule 11 party required
+        if (isRule11 && !row.rule11_name && !row.rule11_address) {
+          rowIssues.push({ field: 'Rule 11 Party', rule: 'Required when payment type includes Rule 11', severity: 'error' });
+        }
+        // Cross-border CA: CAN broker required
+        if (isCrossBorderCA && !row.can_broker_name && !row.can_broker_address) {
+          rowIssues.push({ field: 'Canadian Broker', rule: 'Required for cross-border shipments into/from Canada', severity: 'warning' });
+        }
+        // Cross-border MX: MX broker required
+        if (isCrossBorderMX && !row.mx_broker_name && !row.mx_broker_address) {
+          rowIssues.push({ field: 'Mexico Broker', rule: 'Required for cross-border shipments into/from Mexico', severity: 'warning' });
+        }
+        // Any MX origin or destination: MX-specific fields + importer required
+        const involvesMX = oc === 'MX' || dc === 'MX';
+        if (involvesMX) {
+          if (!row.mx_unc) rowIssues.push({ field: 'MX UNC', rule: 'Required when origin or destination is Mexico', severity: 'error' });
+          if (!row.mx_mmt) rowIssues.push({ field: 'MX MMT', rule: 'Required when origin or destination is Mexico', severity: 'error' });
+          if (!row.mx_mtc) rowIssues.push({ field: 'MX MTC', rule: 'Required when origin or destination is Mexico', severity: 'error' });
+          if (!row.mx_mpc) rowIssues.push({ field: 'MX MPC', rule: 'Required when origin or destination is Mexico', severity: 'error' });
+          if (!row.mx_taxpayer_id) rowIssues.push({ field: 'MX Taxpayer ID', rule: 'Required when origin or destination is Mexico', severity: 'error' });
+          if (!row.importer_address && !row.importer_city) rowIssues.push({ field: 'Importer Party', rule: 'Required when origin or destination is Mexico', severity: 'error' });
+        }
+
+        if (rowIssues.length > 0) {
+          issues.push({ rowIndex: i, name, issues: rowIssues });
+        }
+      });
+
+      const errorCount = issues.reduce((s, r) => s + r.issues.filter(i => i.severity === 'error').length, 0);
+      const warningCount = issues.reduce((s, r) => s + r.issues.filter(i => i.severity === 'warning').length, 0);
+      return { issues, errorCount, warningCount, affectedCount: issues.length };
+    };
+
+    const DataQualityCard = ({ data }) => {
+      const [expanded, setExpanded] = useState(false);
+      const [showAll, setShowAll] = useState(false);
+      const quality = useMemo(() => analyzeDataQuality(data), [data]);
+      const { issues, errorCount, warningCount, affectedCount } = quality;
+      const isClean = affectedCount === 0;
+      const displayIssues = showAll ? issues : issues.slice(0, 5);
+
+      return (
+        <div className={`rounded-xl border overflow-hidden ${isClean ? 'bg-white' : 'bg-white'}`}>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className={`w-full px-5 py-4 border-b flex items-center justify-between ${isClean ? 'bg-emerald-50' : errorCount > 0 ? 'bg-red-50' : 'bg-amber-50'}`}
+          >
+            <div className="flex items-center gap-3">
+              {isClean
+                ? <Icons.Check size={20} className="text-emerald-600" />
+                : errorCount > 0
+                  ? <Icons.AlertCircle size={20} className="text-red-600" />
+                  : <Icons.AlertTriangle size={20} className="text-amber-600" />
+              }
+              <div className="text-left">
+                <h3 className={`font-bold text-sm ${isClean ? 'text-emerald-800' : errorCount > 0 ? 'text-red-800' : 'text-amber-800'}`}>
+                  Data Quality
+                </h3>
+                <p className={`text-xs ${isClean ? 'text-emerald-600' : errorCount > 0 ? 'text-red-600' : 'text-amber-600'}`}>
+                  {isClean
+                    ? 'All patterns pass quality checks'
+                    : `${affectedCount} pattern${affectedCount > 1 ? 's' : ''} need attention · ${errorCount > 0 ? `${errorCount} error${errorCount > 1 ? 's' : ''}` : ''}${errorCount > 0 && warningCount > 0 ? ', ' : ''}${warningCount > 0 ? `${warningCount} warning${warningCount > 1 ? 's' : ''}` : ''}`
+                  }
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {!isClean && (
+                <div className="flex gap-2">
+                  {errorCount > 0 && <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">{errorCount} errors</span>}
+                  {warningCount > 0 && <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">{warningCount} warnings</span>}
+                </div>
+              )}
+              <Icons.ChevronDown size={16} className={`text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {expanded && (
+            <div className="p-5">
+              {isClean ? (
+                <div className="flex items-center gap-3 text-emerald-700 text-sm">
+                  <Icons.Check size={16} className="text-emerald-500" />
+                  All required parties (Shipper, Consignee, Freight Payor, Rule 11, brokers) are present where needed.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500 mb-2">
+                    The following patterns are missing critical party information. Fix these in your source file and re-upload.
+                  </p>
+                  {displayIssues.map((row, i) => (
+                    <div key={i} className="border border-slate-200 rounded-lg overflow-hidden">
+                      <div className="px-3 py-2 bg-slate-50 flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-700 truncate">{row.name}</span>
+                        <span className="ml-auto flex gap-1">
+                          {row.issues.filter(x => x.severity === 'error').length > 0 && (
+                            <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded">{row.issues.filter(x => x.severity === 'error').length} error{row.issues.filter(x => x.severity === 'error').length > 1 ? 's' : ''}</span>
+                          )}
+                          {row.issues.filter(x => x.severity === 'warning').length > 0 && (
+                            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">{row.issues.filter(x => x.severity === 'warning').length} warning{row.issues.filter(x => x.severity === 'warning').length > 1 ? 's' : ''}</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {row.issues.map((issue, j) => (
+                          <div key={j} className="flex items-center gap-3 px-3 py-2">
+                            {issue.severity === 'error'
+                              ? <Icons.AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                              : <Icons.AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+                            }
+                            <span className={`text-xs font-medium ${issue.severity === 'error' ? 'text-red-700' : 'text-amber-700'} w-32 flex-shrink-0`}>{issue.field}</span>
+                            <span className="text-xs text-slate-500">{issue.rule}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {issues.length > 5 && (
+                    <button
+                      onClick={() => setShowAll(!showAll)}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {showAll ? 'Show fewer' : `Show ${issues.length - 5} more affected patterns`}
+                    </button>
+                  )}
+                  <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600">
+                    <strong>How to fix:</strong> Update your source file with the missing party details, then re-upload via the Pattern Converter.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       );
     };
@@ -1215,12 +1369,14 @@ Return the JSON array now:`
 
       return (
         <div className="space-y-6">
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-5 gap-4">
             <StatCard icon={Icons.Package} label="Total Patterns" value={analysis.stats.total} color="blue" />
             <StatCard icon={Icons.AlertCircle} label="Hazardous" value={analysis.stats.hazmat} sublabel={`${analysis.stats.total ? ((analysis.stats.hazmat / analysis.stats.total) * 100).toFixed(0) : 0}%`} color="indigo" />
             <StatCard icon={Icons.Globe} label="Cross Border" value={analysis.stats.crossBorder} sublabel={cbLabel} color="teal" />
             <StatCard icon={Icons.Truck} label="Rule 11" value={analysis.stats.rule11} sublabel={`${analysis.stats.total ? ((analysis.stats.rule11 / analysis.stats.total) * 100).toFixed(0) : 0}%`} color="cyan" />
+            <StatCard icon={Icons.FileText} label="Carta Porte" value={analysis.stats.cartaPorte} sublabel={`${analysis.stats.total ? ((analysis.stats.cartaPorte / analysis.stats.total) * 100).toFixed(0) : 0}%`} color="orange" />
           </div>
+          <DataQualityCard data={data} />
           <div className="grid grid-cols-2 gap-6">
             <PMKCard pmkResults={analysis.pmkResults} winningLevel={analysis.winningLevel} suggestedField={analysis.suggestedField} atRiskPatterns={analysis.atRiskPatterns} />
             <div className="bg-white rounded-xl border overflow-hidden">
@@ -1256,7 +1412,7 @@ Return the JSON array now:`
     };
 
     // Patterns Page - Display built patterns
-    const PatternsPage = ({ patterns, onCreatePattern }) => {
+    const PatternsPage = ({ patterns, onCreatePattern, onDeleteAllPatterns }) => {
       const [searchTerm, setSearchTerm] = useState('');
       const [sortField, setSortField] = useState('telegraph_pattern_name');
       const [sortDirection, setSortDirection] = useState('asc');
@@ -1324,7 +1480,7 @@ Return the JSON array now:`
           <div className="flex items-center gap-1">
             {label}
             {sortField === field ? (
-              <span className="text-blue-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+              <span className="text-blue-600">{sortDirection === 'asc' ? 'â†‘' : 'â†“'}</span>
             ) : (
               <Icons.ArrowUpDown size={12} className="text-slate-300" />
             )}
@@ -1519,22 +1675,22 @@ Return the JSON array now:`
                       <td className="px-4 py-3 text-slate-600 text-sm">
                         {pattern.createdAt ? new Date(pattern.createdAt).toLocaleDateString('en-US', { 
                           month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                        }) : '—'}
+                        }) : 'â€”'}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm">
                         {pattern.createdBy || 'Guest User'}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm">
-                        {pattern.route || '—'}
+                        {pattern.route || 'â€”'}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm whitespace-nowrap">
-                        {[pattern.origin_city, pattern.origin_state, pattern.origin_country].filter(Boolean).join(', ') || '—'}
+                        {[pattern.origin_city, pattern.origin_state, pattern.origin_country].filter(Boolean).join(', ') || 'â€”'}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm whitespace-nowrap">
-                        {[pattern.destination_city, pattern.destination_state, pattern.destination_country].filter(Boolean).join(', ') || '—'}
+                        {[pattern.destination_city, pattern.destination_state, pattern.destination_country].filter(Boolean).join(', ') || 'â€”'}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm">
-                        {pattern.stcc || '—'}
+                        {pattern.stcc || 'â€”'}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -1558,8 +1714,17 @@ Return the JSON array now:`
 
             {/* Pagination Footer */}
             <div className="px-4 py-3 border-t bg-slate-50 flex items-center justify-between">
-              <div className="text-sm text-slate-600">
-                Showing {((currentPage - 1) * resultsPerPage) + 1} to {Math.min(currentPage * resultsPerPage, sortedPatterns.length)} of {sortedPatterns.length} result(s).
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-slate-600">
+                  Showing {((currentPage - 1) * resultsPerPage) + 1} to {Math.min(currentPage * resultsPerPage, sortedPatterns.length)} of {sortedPatterns.length} result(s).
+                </div>
+                <button
+                  onClick={() => { if (window.confirm('Delete all patterns? This cannot be undone.')) onDeleteAllPatterns(); }}
+                  className="text-slate-300 hover:text-red-400 transition-colors text-xs"
+                  title="Delete all patterns"
+                >
+                  <Icons.Trash2 size={13} />
+                </button>
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 text-sm">
@@ -1743,20 +1908,9 @@ Return the JSON array now:`
       const handleApiKeySubmit = async () => {
         if (!apiKeyInput.trim()) return;
         handleSaveApiKey(apiKeyInput.trim());
-        setShowApiKeyInput(false);
-        
         if (extractionSource) {
-          // Small delay to let modal close before processing
-          setTimeout(async () => {
-            try {
-              await processImageOrPdf(extractionSource.file, extractionSource.ext, extractionSource.sourceType);
-            } catch (err) {
-              console.error('Processing error:', err);
-              setExtractionError(err.message || 'Failed to process file');
-            } finally {
-              setExtractionSource(null);
-            }
-          }, 100);
+          await processImageOrPdf(extractionSource.file, extractionSource.ext, extractionSource.sourceType);
+          setExtractionSource(null);
         }
       };
 
@@ -1949,7 +2103,7 @@ Return the JSON array now:`
                     <Icons.Image size={32} className="mx-auto mb-3 text-slate-400" />
                     <p className="font-medium text-slate-700">PDF / Image</p>
                     <p className="text-xs text-slate-500 mt-1">AI extracts pattern data</p>
-                    {apiKey && <p className="text-xs text-emerald-600 mt-1">✓ Ready</p>}
+                    {apiKey && <p className="text-xs text-emerald-600 mt-1">âœ“ Ready</p>}
                   </div>
                 </label>
               </div>
@@ -1957,8 +2111,8 @@ Return the JSON array now:`
               <div className="bg-slate-50 rounded-lg p-4 text-sm text-slate-600">
                 <p className="font-medium mb-2">Supported Conversions:</p>
                 <ul className="space-y-1">
-                  <li>• <strong>Excel/CSV:</strong> Auto-maps columns, parses addresses (e.g., "FREEPORT TX" → City, State, Country)</li>
-                  <li>• <strong>PDF/Image:</strong> {apiKey ? <span className="text-emerald-600">✓ AI extraction enabled</span> : <span className="text-amber-600">Requires API key</span>} - extracts from screenshots, patterns, waybills</li>
+                  <li>â€¢ <strong>Excel/CSV:</strong> Auto-maps columns, parses addresses (e.g., "FREEPORT TX"  â  City, State, Country)</li>
+                  <li>â€¢ <strong>PDF/Image:</strong> {apiKey ? <span className="text-emerald-600">âœ“ AI extraction enabled</span> : <span className="text-amber-600">Requires API key</span>} - extracts from screenshots, patterns, waybills</li>
                 </ul>
               </div>
             </div>
@@ -1978,7 +2132,7 @@ Return the JSON array now:`
                 <div>
                   <h2 className="text-lg font-bold">Column Mapping</h2>
                   <p className="text-sm text-slate-500">
-                    {rawData.length} rows • {mappedCount} columns mapped • {skippedCount} skipped
+                    {rawData.length} rows â€¢ {mappedCount} columns mapped â€¢ {skippedCount} skipped
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -2062,7 +2216,7 @@ Return the JSON array now:`
               <div className="px-6 py-4 border-b bg-slate-50 flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold">Review Extracted Data</h2>
-                  <p className="text-sm text-slate-500">{extractedData.length} pattern(s) extracted • Click any cell to edit</p>
+                  <p className="text-sm text-slate-500">{extractedData.length} pattern(s) extracted â€¢ Click any cell to edit</p>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setStep('upload')} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Back</button>
@@ -2100,7 +2254,7 @@ Return the JSON array now:`
                                     value={row[field] || ''}
                                     onChange={e => handleCellEdit(rowIndex, field, e.target.value)}
                                     className={`w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${row[field] ? 'bg-white border-slate-300' : 'bg-slate-50 border-slate-200'}`}
-                                    placeholder="—"
+                                    placeholder="â€”"
                                   />
                                 </div>
                               ))}
@@ -2189,7 +2343,7 @@ Return the JSON array now:`
                         >
                           <span className="font-medium text-slate-800">{p.name}</span>
                           <span className="text-sm text-slate-500 ml-2">({p.patterns?.length || 0} patterns)</span>
-                          {currentProject?.id === p.id && <span className="text-xs text-emerald-600 ml-2">• Current</span>}
+                          {currentProject?.id === p.id && <span className="text-xs text-emerald-600 ml-2">â€¢ Current</span>}
                         </button>
                       ))}
                     </div>
@@ -2234,7 +2388,7 @@ Return the JSON array now:`
               <div className="px-6 py-4 border-b bg-slate-50 flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold">Conversion Preview</h2>
-                  <p className="text-sm text-slate-500">{convertedData.length} patterns • {validationIssues.length} issues</p>
+                  <p className="text-sm text-slate-500">{convertedData.length} patterns â€¢ {validationIssues.length} issues</p>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setStep('upload')} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Back</button>
@@ -2280,17 +2434,17 @@ Return the JSON array now:`
                   <tbody className="divide-y">
                     {convertedData.slice(0, 50).map((r, i) => (
                       <tr key={i} className="hover:bg-slate-50">
-                        <td className="px-3 py-2 font-medium max-w-[200px] truncate">{r.telegraph_pattern_name || '—'}</td>
-                        <td className="px-3 py-2">{r.stcc || '—'}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{[r.origin_city, r.origin_state].filter(Boolean).join(', ') || '—'}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{[r.destination_city, r.destination_state].filter(Boolean).join(', ') || '—'}</td>
-                        <td className="px-3 py-2">{r.route || '—'}</td>
-                        <td className="px-3 py-2">{r.payment_type || '—'}</td>
-                        <td className="px-3 py-2 max-w-[150px] truncate">{r.shipper_name || '—'}</td>
-                        <td className="px-3 py-2 max-w-[150px] truncate">{r.shipper_address || '—'}</td>
-                        <td className="px-3 py-2 max-w-[150px] truncate">{r.consignee_name || '—'}</td>
-                        <td className="px-3 py-2 max-w-[150px] truncate">{r.consignee_address || '—'}</td>
-                        <td className="px-3 py-2 max-w-[150px] truncate">{r.freight_payor_name || '—'}</td>
+                        <td className="px-3 py-2 font-medium max-w-[200px] truncate">{r.telegraph_pattern_name || 'â€”'}</td>
+                        <td className="px-3 py-2">{r.stcc || 'â€”'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{[r.origin_city, r.origin_state].filter(Boolean).join(', ') || 'â€”'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{[r.destination_city, r.destination_state].filter(Boolean).join(', ') || 'â€”'}</td>
+                        <td className="px-3 py-2">{r.route || 'â€”'}</td>
+                        <td className="px-3 py-2">{r.payment_type || 'â€”'}</td>
+                        <td className="px-3 py-2 max-w-[150px] truncate">{r.shipper_name || 'â€”'}</td>
+                        <td className="px-3 py-2 max-w-[150px] truncate">{r.shipper_address || 'â€”'}</td>
+                        <td className="px-3 py-2 max-w-[150px] truncate">{r.consignee_name || 'â€”'}</td>
+                        <td className="px-3 py-2 max-w-[150px] truncate">{r.consignee_address || 'â€”'}</td>
+                        <td className="px-3 py-2 max-w-[150px] truncate">{r.freight_payor_name || 'â€”'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2330,7 +2484,7 @@ Return the JSON array now:`
                   </div>
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
-                  <strong>Add to Project:</strong> Save patterns and upload more files • <strong>Execute Analysis:</strong> Go to analysis with {currentProject ? 'all project patterns' : 'just these patterns'}
+                  <strong>Add to Project:</strong> Save patterns and upload more files â€¢ <strong>Execute Analysis:</strong> Go to analysis with {currentProject ? 'all project patterns' : 'just these patterns'}
                 </p>
               </div>
             </div>
@@ -2468,7 +2622,7 @@ Return the JSON array now:`
             <div className="p-6">
               {activeNav === 'analysis' && <PatternAnalysis data={currentData} onClear={handleClearData} onBuildPatterns={(patterns) => { setBuiltPatterns(prev => [...prev, ...patterns]); setActiveNav('patterns'); showToast(`Successfully built ${patterns.length} pattern${patterns.length !== 1 ? 's' : ''}!`); }} />}
               {activeNav === 'converter' && <PatternConverter onConvertComplete={handleConvertComplete} onAddToProject={handleAddToProject} currentProject={currentProject} projects={projects} setCurrentProject={setCurrentProject} onNewProject={handleNewProject} />}
-              {activeNav === 'patterns' && <PatternsPage patterns={builtPatterns} onCreatePattern={() => setActiveNav('converter')} />}
+              {activeNav === 'patterns' && <PatternsPage patterns={builtPatterns} onCreatePattern={() => setActiveNav('converter')} onDeleteAllPatterns={() => { setBuiltPatterns([]); }} />}
             </div>
           </main>
         </div>
