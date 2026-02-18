@@ -661,8 +661,26 @@ Return the JSON array now:`
           }))
           .sort((a, b) => b.count - a.count);
 
-        // Test ALL template columns as candidates (except the ones already in PMK levels)
-        const candidateFields = TEMPLATE_COLUMNS
+        // Test payload-relevant columns as candidates (party/commodity fields a customer provides)
+        // Exclude pattern_name, route, shipment metadata, and other non-payload fields
+        const PAYLOAD_RELEVANT_FIELDS = [
+          'stcc',
+          'origin_city', 'origin_state', 'origin_country',
+          'destination_city', 'destination_state', 'destination_country',
+          'payment_type', 'bill_type', 'shipment_type',
+          'shipper_name', 'shipper_address', 'shipper_city', 'shipper_state', 'shipper_postal', 'shipper_country',
+          'consignee_name', 'consignee_address', 'consignee_city', 'consignee_state', 'consignee_postal', 'consignee_country',
+          'freight_payor_name', 'freight_payor_address', 'freight_payor_city', 'freight_payor_state', 'freight_payor_postal', 'freight_payor_country',
+          'rule11_name', 'rule11_address', 'rule11_city', 'rule11_state', 'rule11_postal', 'rule11_country',
+          'careof_name', 'careof_address', 'careof_city', 'careof_state', 'careof_postal', 'careof_country',
+          'can_broker_name', 'can_broker_address', 'can_broker_city', 'can_broker_state', 'can_broker_postal', 'can_broker_country',
+          'importer_address', 'importer_city', 'importer_state', 'importer_postal', 'importer_country',
+          'mx_broker_name', 'mx_broker_address', 'mx_broker_city', 'mx_broker_state', 'mx_broker_postal', 'mx_broker_country',
+          'mx_unc', 'mx_mmt', 'mx_mtc', 'mx_mpc', 'mx_taxpayer_id',
+          'temp_control_needed', 'empty_disposition_needed',
+          'price_authority_type', 'price_authority_reference_id', 'price_authority_tariff_agency', 'price_authority_carrier',
+        ];
+        const candidateFields = PAYLOAD_RELEVANT_FIELDS
           .filter(key => !lastLevel.fields.includes(key))
           .map(key => ({ key, label: COLUMN_LABELS[key] || key }));
         
@@ -690,7 +708,7 @@ Return the JSON array now:`
         let differingFields = [];
         if (!bestField && atRiskPatterns.length > 0) {
           // Check which fields differ between duplicates
-          const fieldsToCheck = TEMPLATE_COLUMNS.filter(f => !lastLevel.fields.includes(f));
+          const fieldsToCheck = PAYLOAD_RELEVANT_FIELDS.filter(f => !lastLevel.fields.includes(f));
           const fieldDiffCounts = {};
           
           atRiskPatterns.forEach(group => {
@@ -1261,7 +1279,7 @@ Return the JSON array now:`
                 <p className={`text-xs ${isClean ? 'text-emerald-600' : errorCount > 0 ? 'text-red-600' : 'text-amber-600'}`}>
                   {isClean
                     ? 'All patterns pass quality checks'
-                    : `${affectedCount} pattern${affectedCount > 1 ? 's' : ''} need attention Â· ${errorCount > 0 ? `${errorCount} error${errorCount > 1 ? 's' : ''}` : ''}${errorCount > 0 && warningCount > 0 ? ', ' : ''}${warningCount > 0 ? `${warningCount} warning${warningCount > 1 ? 's' : ''}` : ''}`
+                    : `${affectedCount} pattern${affectedCount > 1 ? 's' : ''} need attention · ${errorCount > 0 ? `${errorCount} error${errorCount > 1 ? 's' : ''}` : ''}${errorCount > 0 && warningCount > 0 ? ', ' : ''}${warningCount > 0 ? `${warningCount} warning${warningCount > 1 ? 's' : ''}` : ''}`
                   }
                 </p>
               </div>
