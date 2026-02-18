@@ -465,7 +465,7 @@ Return ONLY a valid JSON array (no markdown code fences, no explanation) with ob
 LANE INFORMATION:
 - telegraph_pattern_name: Pattern identifier or generate from "STCC - OriginCity - DestCity"
 - stcc: Commodity/STCC code (usually 7 digits)
-- origin_city, origin_state, origin_country: Origin location (parse "FREEPORT TX"  Ã¢Â†Â’  "FREEPORT", "TX", "US")
+- origin_city, origin_state, origin_country: Origin location (parse "FREEPORT TX"  →  "FREEPORT", "TX", "US")
 - destination_city, destination_state, destination_country: Destination location
 - route: Carrier routing codes (e.g., "BNSF-UP", "CN", "NS-CSX")
 
@@ -528,7 +528,7 @@ OTHER:
 - price_authority_type, price_authority_reference_id, price_authority_tariff_agency, price_authority_carrier
 
 IMPORTANT RULES:
-1. Parse combined addresses: "123 MAIN ST, HOUSTON TX 77001"  Ã¢Â†Â’  address="123 MAIN ST", city="HOUSTON", state="TX", postal="77001"
+1. Parse combined addresses: "123 MAIN ST, HOUSTON TX 77001"  →  address="123 MAIN ST", city="HOUSTON", state="TX", postal="77001"
 2. For US states, use 2-letter abbreviations
 3. Default country to "US" if clearly North American and not obviously CA or MX
 4. Look carefully for payment terms - they may be abbreviated (PP, CC, 11, COL, PRE)
@@ -964,7 +964,7 @@ Return the JSON array now:`
                       Adding <strong>{suggestedField.label}</strong> would increase uniqueness to <strong>{suggestedField.uniqueness.toFixed(1)}%</strong>
                     </p>
                     {suggestedField.uniqueness === 100 && (
-                      <p className="text-xs text-emerald-600 mt-1 font-medium">Ã¢Å“â€œ This would achieve 100% uniqueness</p>
+                      <p className="text-xs text-emerald-600 mt-1 font-medium">✓ This would achieve 100% uniqueness</p>
                     )}
                   </div>
                 )}
@@ -1158,7 +1158,7 @@ Return the JSON array now:`
                     <td key={c} className="px-3 py-2 whitespace-nowrap max-w-[200px] truncate">
                       {c === '_tags' ? <div className="flex flex-wrap gap-1">{(r._tags || []).map((t, j) => <StatusPill key={j} type={t} />)}</div>
                         : c === 'telegraph_pattern_name' ? <span className="font-medium" title={r[c]}>{r[c] || `${r.stcc || ''} - ${r.origin_city || ''} - ${r.destination_city || ''}`}</span>
-                        : <span title={r[c] || ''}>{r[c] || 'Ã¢â‚¬â€'}</span>}
+                        : <span title={r[c] || ''}>{r[c] || '—'}</span>}
                     </td>
                   ))}
                 </tr>
@@ -1481,7 +1481,7 @@ Return the JSON array now:`
           <div className="flex items-center gap-1">
             {label}
             {sortField === field ? (
-              <span className="text-blue-600">{sortDirection === 'asc' ? 'Ã¢â€ â€˜' : 'Ã¢â€ â€œ'}</span>
+              <span className="text-blue-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
             ) : (
               <Icons.ArrowUpDown size={12} className="text-slate-300" />
             )}
@@ -1676,22 +1676,22 @@ Return the JSON array now:`
                       <td className="px-4 py-3 text-slate-600 text-sm">
                         {pattern.createdAt ? new Date(pattern.createdAt).toLocaleDateString('en-US', { 
                           month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                        }) : 'Ã¢â‚¬â€'}
+                        }) : '—'}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm">
                         {pattern.createdBy || 'Guest User'}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm">
-                        {pattern.route || 'Ã¢â‚¬â€'}
+                        {pattern.route || '—'}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm whitespace-nowrap">
-                        {[pattern.origin_city, pattern.origin_state, pattern.origin_country].filter(Boolean).join(', ') || 'Ã¢â‚¬â€'}
+                        {[pattern.origin_city, pattern.origin_state, pattern.origin_country].filter(Boolean).join(', ') || '—'}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm whitespace-nowrap">
-                        {[pattern.destination_city, pattern.destination_state, pattern.destination_country].filter(Boolean).join(', ') || 'Ã¢â‚¬â€'}
+                        {[pattern.destination_city, pattern.destination_state, pattern.destination_country].filter(Boolean).join(', ') || '—'}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm">
-                        {pattern.stcc || 'Ã¢â‚¬â€'}
+                        {pattern.stcc || '—'}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -2104,7 +2104,7 @@ Return the JSON array now:`
                     <Icons.Image size={32} className="mx-auto mb-3 text-slate-400" />
                     <p className="font-medium text-slate-700">PDF / Image</p>
                     <p className="text-xs text-slate-500 mt-1">AI extracts pattern data</p>
-                    {apiKey && <p className="text-xs text-emerald-600 mt-1">Ã¢Å“â€œ Ready</p>}
+                    {apiKey && <p className="text-xs text-emerald-600 mt-1">✓ Ready</p>}
                   </div>
                 </label>
               </div>
@@ -2112,8 +2112,8 @@ Return the JSON array now:`
               <div className="bg-slate-50 rounded-lg p-4 text-sm text-slate-600">
                 <p className="font-medium mb-2">Supported Conversions:</p>
                 <ul className="space-y-1">
-                  <li>Ã¢â‚¬Â¢ <strong>Excel/CSV:</strong> Auto-maps columns, parses addresses (e.g., "FREEPORT TX"  Ã¢Â†Â’  City, State, Country)</li>
-                  <li>Ã¢â‚¬Â¢ <strong>PDF/Image:</strong> {apiKey ? <span className="text-emerald-600">Ã¢Å“â€œ AI extraction enabled</span> : <span className="text-amber-600">Requires API key</span>} - extracts from screenshots, patterns, waybills</li>
+                  <li>• <strong>Excel/CSV:</strong> Auto-maps columns, parses addresses (e.g., "FREEPORT TX"  →  City, State, Country)</li>
+                  <li>• <strong>PDF/Image:</strong> {apiKey ? <span className="text-emerald-600">✓ AI extraction enabled</span> : <span className="text-amber-600">Requires API key</span>} - extracts from screenshots, patterns, waybills</li>
                 </ul>
               </div>
             </div>
@@ -2133,7 +2133,7 @@ Return the JSON array now:`
                 <div>
                   <h2 className="text-lg font-bold">Column Mapping</h2>
                   <p className="text-sm text-slate-500">
-                    {rawData.length} rows Ã¢â‚¬Â¢ {mappedCount} columns mapped Ã¢â‚¬Â¢ {skippedCount} skipped
+                    {rawData.length} rows • {mappedCount} columns mapped • {skippedCount} skipped
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -2217,7 +2217,7 @@ Return the JSON array now:`
               <div className="px-6 py-4 border-b bg-slate-50 flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold">Review Extracted Data</h2>
-                  <p className="text-sm text-slate-500">{extractedData.length} pattern(s) extracted Ã¢â‚¬Â¢ Click any cell to edit</p>
+                  <p className="text-sm text-slate-500">{extractedData.length} pattern(s) extracted • Click any cell to edit</p>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setStep('upload')} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Back</button>
@@ -2255,7 +2255,7 @@ Return the JSON array now:`
                                     value={row[field] || ''}
                                     onChange={e => handleCellEdit(rowIndex, field, e.target.value)}
                                     className={`w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${row[field] ? 'bg-white border-slate-300' : 'bg-slate-50 border-slate-200'}`}
-                                    placeholder="Ã¢â‚¬â€"
+                                    placeholder="—"
                                   />
                                 </div>
                               ))}
@@ -2344,7 +2344,7 @@ Return the JSON array now:`
                         >
                           <span className="font-medium text-slate-800">{p.name}</span>
                           <span className="text-sm text-slate-500 ml-2">({p.patterns?.length || 0} patterns)</span>
-                          {currentProject?.id === p.id && <span className="text-xs text-emerald-600 ml-2">Ã¢â‚¬Â¢ Current</span>}
+                          {currentProject?.id === p.id && <span className="text-xs text-emerald-600 ml-2">• Current</span>}
                         </button>
                       ))}
                     </div>
@@ -2389,7 +2389,7 @@ Return the JSON array now:`
               <div className="px-6 py-4 border-b bg-slate-50 flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold">Conversion Preview</h2>
-                  <p className="text-sm text-slate-500">{convertedData.length} patterns Ã¢â‚¬Â¢ {validationIssues.length} issues</p>
+                  <p className="text-sm text-slate-500">{convertedData.length} patterns • {validationIssues.length} issues</p>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setStep('upload')} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Back</button>
@@ -2435,17 +2435,17 @@ Return the JSON array now:`
                   <tbody className="divide-y">
                     {convertedData.slice(0, 50).map((r, i) => (
                       <tr key={i} className="hover:bg-slate-50">
-                        <td className="px-3 py-2 font-medium max-w-[200px] truncate">{r.telegraph_pattern_name || 'Ã¢â‚¬â€'}</td>
-                        <td className="px-3 py-2">{r.stcc || 'Ã¢â‚¬â€'}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{[r.origin_city, r.origin_state].filter(Boolean).join(', ') || 'Ã¢â‚¬â€'}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{[r.destination_city, r.destination_state].filter(Boolean).join(', ') || 'Ã¢â‚¬â€'}</td>
-                        <td className="px-3 py-2">{r.route || 'Ã¢â‚¬â€'}</td>
-                        <td className="px-3 py-2">{r.payment_type || 'Ã¢â‚¬â€'}</td>
-                        <td className="px-3 py-2 max-w-[150px] truncate">{r.shipper_name || 'Ã¢â‚¬â€'}</td>
-                        <td className="px-3 py-2 max-w-[150px] truncate">{r.shipper_address || 'Ã¢â‚¬â€'}</td>
-                        <td className="px-3 py-2 max-w-[150px] truncate">{r.consignee_name || 'Ã¢â‚¬â€'}</td>
-                        <td className="px-3 py-2 max-w-[150px] truncate">{r.consignee_address || 'Ã¢â‚¬â€'}</td>
-                        <td className="px-3 py-2 max-w-[150px] truncate">{r.freight_payor_name || 'Ã¢â‚¬â€'}</td>
+                        <td className="px-3 py-2 font-medium max-w-[200px] truncate">{r.telegraph_pattern_name || '—'}</td>
+                        <td className="px-3 py-2">{r.stcc || '—'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{[r.origin_city, r.origin_state].filter(Boolean).join(', ') || '—'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{[r.destination_city, r.destination_state].filter(Boolean).join(', ') || '—'}</td>
+                        <td className="px-3 py-2">{r.route || '—'}</td>
+                        <td className="px-3 py-2">{r.payment_type || '—'}</td>
+                        <td className="px-3 py-2 max-w-[150px] truncate">{r.shipper_name || '—'}</td>
+                        <td className="px-3 py-2 max-w-[150px] truncate">{r.shipper_address || '—'}</td>
+                        <td className="px-3 py-2 max-w-[150px] truncate">{r.consignee_name || '—'}</td>
+                        <td className="px-3 py-2 max-w-[150px] truncate">{r.consignee_address || '—'}</td>
+                        <td className="px-3 py-2 max-w-[150px] truncate">{r.freight_payor_name || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2485,7 +2485,7 @@ Return the JSON array now:`
                   </div>
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
-                  <strong>Add to Project:</strong> Save patterns and upload more files Ã¢â‚¬Â¢ <strong>Execute Analysis:</strong> Go to analysis with {currentProject ? 'all project patterns' : 'just these patterns'}
+                  <strong>Add to Project:</strong> Save patterns and upload more files • <strong>Execute Analysis:</strong> Go to analysis with {currentProject ? 'all project patterns' : 'just these patterns'}
                 </p>
               </div>
             </div>
